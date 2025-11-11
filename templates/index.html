@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job Fraud Predictor</title>
+    <style>
+      :root{--bg:#f7f9fb;--card:#ffffff;--accent:#3b82f6;--danger:#ef4444;--ok:#10b981}
+      *{box-sizing:border-box}
+      body{font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);margin:0;padding:2rem}
+      .container{max-width:980px;margin:0 auto}
+      header{display:flex;align-items:center;gap:1rem}
+      h1{margin:0;font-size:1.5rem}
+      p.lead{color:#334155;margin:.25rem 0 1rem}
+
+      .grid{display:grid;grid-template-columns:1fr 360px;gap:1rem}
+      @media (max-width:900px){.grid{grid-template-columns:1fr}}
+
+      .card{background:var(--card);padding:1rem;border-radius:10px;box-shadow:0 6px 18px rgba(15,23,42,0.06)}
+      form .row{display:flex;gap:.75rem}
+      form .col{flex:1}
+      label{display:block;font-size:.85rem;color:#0f172a;margin-top:.5rem}
+      input[type=text], textarea, select{width:100%;padding:.6rem;border:1px solid #e6eef6;border-radius:8px;background:#fbfdff}
+      textarea{min-height:80px}
+      .muted{color:#64748b;font-size:.9rem}
+      button.primary{background:var(--accent);color:#fff;padding:.6rem 1rem;border:0;border-radius:8px;cursor:pointer}
+      button.ghost{background:transparent;border:1px solid #e2e8f0;padding:.5rem .75rem;border-radius:8px;cursor:pointer}
+
+      .result{padding:.8rem;border-radius:8px;margin-top:.75rem}
+      .result.ok{background:#ecfdf5;border:1px solid #bbf7d0;color:#064e3b}
+      .result.bad{background:#fff1f2;border:1px solid #fecaca;color:#7f1d1d}
+
+      .right-col small{display:block;color:#475569}
+      pre.sample{background:#0f172a;color:#e6eef6;padding:.75rem;border-radius:6px;overflow:auto}
+
+      .sample-select{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+      .field-help{font-size:.85rem;color:#475569}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Job Fraud Predictor</h1>
+      </header>
+      <p class="lead">Fill the form and click Predict. The model must be present as <strong>lightgbm_job_scam_model.pkl</strong> next to the app.</p>
+
+      <div class="grid">
+        <main>
+          <div class="card">
+            {% if error %}
+              <div class="result bad"><strong>Error:</strong> {{ error }}</div>
+            {% endif %}
+
+            {% if result %}
+              <div class="result {% if result.prediction==1 %}bad{% else %}ok{% endif %}">
+                <strong>Prediction:</strong> {{ result.label }}
+                {% if result.probability is not none %}
+                  <div>Probability (positive): {{ '%.3f'|format(result.probability) }}</div>
+                {% endif %}
+              </div>
+            {% endif %}
+
+            <form method="post" id="predict-form">
+              <div class="sample-select">
+                <label for="loadSample" class="muted">Quick samples:</label>
+                <select id="loadSample">
+                  <option value="">-- choose sample to autofill --</option>
+                  <option value="legit">Senior Software Engineer (legit)</option>
+                  <option value="scam">Work-from-home scam (likely fraudulent)</option>
+                  <option value="intern">Marketing Intern (ambiguous)</option>
+                </select>
+                <button type="button" class="ghost" id="clearBtn">Clear</button>
+              </div>
+
+              <label for="title">Title</label>
+              <input type="text" name="title" id="title" />
+
+              <div class="row">
+                <div class="col">
+                  <label for="location">Location</label>
+                  <input type="text" name="location" id="location" />
+                </div>
+                <div class="col">
+                  <label for="department">Department</label>
+                  <input type="text" name="department" id="department" />
+                </div>
+              </div>
+
+              <label for="company_profile">Company profile</label>
+              <textarea name="company_profile" id="company_profile" rows="3"></textarea>
+
+              <label for="description">Description</label>
+              <textarea name="description" id="description" rows="4"></textarea>
+
+              <label for="requirements">Requirements</label>
+              <textarea name="requirements" id="requirements" rows="3"></textarea>
+
+              <div class="row">
+                <div class="col">
+                  <label for="telecommuting">Telecommuting</label>
+                  <select name="telecommuting" id="telecommuting">
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label for="has_company_logo">Has company logo</label>
+                  <select name="has_company_logo" id="has_company_logo">
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label for="has_questions">Has questions</label>
+                  <select name="has_questions" id="has_questions">
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col">
+                  <label for="employment_type">Employment type</label>
+                  <select name="employment_type" id="employment_type">
+                    <option value="full-time">Full-time</option>
+                    <option value="part-time">Part-time</option>
+                    <option value="contract">Contract</option>
+                    <option value="internship">Internship</option>
+                    <option value="temporary">Temporary</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label for="required_experience">Required experience</label>
+                  <select name="required_experience" id="required_experience">
+                    <option value="entry level">Entry level</option>
+                    <option value="internship">Internship</option>
+                    <option value="associate">Associate</option>
+                    <option value="mid-senior level">Mid-Senior level</option>
+                    <option value="director">Director</option>
+                    <option value="executive">Executive</option>
+                    <option value="not applicable">Not applicable</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col">
+                  <label for="required_education">Required education</label>
+                  <select name="required_education" id="required_education">
+                    <option value="unknown">Unknown</option>
+                    <option value="high school or equivalent">High school or equivalent</option>
+                    <option value="bachelor's degree">Bachelor's degree</option>
+                    <option value="master's degree">Master's degree</option>
+                    <option value="doctorate">Doctorate</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label for="industry">Industry</label>
+                  <select name="industry" id="industry">
+                    <option value="computer software">Computer software</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="internet">Internet</option>
+                    <option value="information technology and services">Information technology</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <label for="function">Function</label>
+              <select name="function" id="function">
+                <option value="engineering">Engineering</option>
+                <option value="sales">Sales</option>
+                <option value="marketing">Marketing</option>
+                <option value="customer service">Customer service</option>
+                <option value="other">Other</option>
+              </select>
+
+              <div class="row">
+                <div class="col">
+                  <label for="salary_min">Salary min</label>
+                  <input type="text" name="salary_min" id="salary_min" placeholder="e.g. 50000" />
+                </div>
+                <div class="col">
+                  <label for="salary_max">Salary max</label>
+                  <input type="text" name="salary_max" id="salary_max" placeholder="e.g. 80000" />
+                </div>
+              </div>
+
+              <p style="margin-top:.75rem">
+                <button type="submit" class="primary">Predict</button>
+                <button type="button" class="ghost" id="apiExample">Show API example</button>
+              </p>
+            </form>
+          </div>
+        </main>
+
+        <aside class="right-col">
+          <div class="card">
+            <small>Dataset preview (first 5 rows)</small>
+            {% if sample is not none %}
+              <pre class="sample">{{ sample.to_csv(index=False) }}</pre>
+            {% else %}
+              <div class="field-help">No dataset preview available.</div>
+            {% endif %}
+
+            <hr />
+            <small>API</small>
+            <div class="field-help">POST JSON to <code>/api/predict</code> with the same field names.</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      // sample records to autofill the form
+      const samples = {
+        legit: {
+          title: "Senior Software Engineer",
+          location: "US, CA, San Francisco",
+          department: "Engineering",
+          company_profile: "Established SaaS company with 500+ employees focused on cloud collaboration and developer tools.",
+          description: "Design and implement backend systems, own services, mentor junior engineers.",
+          requirements: "5+ years backend development, Python/Go, distributed systems.",
+          benefits: "Health insurance, 401k, flexible PTO",
+          telecommuting: "1",
+          has_company_logo: "1",
+          has_questions: "1",
+          employment_type: "full-time",
+          required_experience: "mid-senior level",
+          required_education: "bachelor's degree",
+          industry: "computer software",
+          function: "engineering",
+          salary_min: "140000",
+          salary_max: "170000"
+        },
+        scam: {
+          title: "Work from Home Data Entry - Earn $3000/week",
+          location: "Remote",
+          department: "Sales",
+          company_profile: "Make big money working from your home. No experience required.",
+          description: "Simple data entry from home. Get paid weekly. Provide bank details to receive payments.",
+          requirements: "No experience, willing to give bank details.",
+          benefits: "Fast pay",
+          telecommuting: "1",
+          has_company_logo: "0",
+          has_questions: "0",
+          employment_type: "contract",
+          required_experience: "entry level",
+          required_education: "unknown",
+          industry: "other",
+          function: "other",
+          salary_min: "3000",
+          salary_max: "3000"
+        },
+        intern: {
+          title: "Marketing Intern",
+          location: "US, NY, New York",
+          department: "Marketing",
+          company_profile: "Growing online publication; small editorial and marketing team.",
+          description: "Assist editorial and social media, create content and help with outreach.",
+          requirements: "Familiar with social media, basic writing skills.",
+          benefits: "Networking, mentorship",
+          telecommuting: "0",
+          has_company_logo: "1",
+          has_questions: "0",
+          employment_type: "internship",
+          required_experience: "internship",
+          required_education: "unknown",
+          industry: "marketing",
+          function: "marketing",
+          salary_min: "0",
+          salary_max: "0"
+        }
+      };
+
+      function fillSample(key){
+        if(!samples[key]) return;
+        const data = samples[key];
+        for(const k in data){
+          const el = document.getElementById(k);
+          if(!el) continue;
+          el.value = data[k];
+        }
+      }
+
+      document.getElementById('loadSample').addEventListener('change', function(){
+        const v = this.value;
+        if(!v){document.getElementById('predict-form').reset(); return}
+        fillSample(v);
+      });
+
+      document.getElementById('clearBtn').addEventListener('click', function(){
+        document.getElementById('predict-form').reset();
+        document.getElementById('loadSample').value = '';
+      });
+
+      document.getElementById('apiExample').addEventListener('click', function(){
+        const ex = samples.legit;
+        alert('API JSON example copied to clipboard (please paste into your editor)');
+        try{navigator.clipboard.writeText(JSON.stringify(ex, null, 2))}catch(e){}
+      });
+    </script>
+  </body>
+</html>
